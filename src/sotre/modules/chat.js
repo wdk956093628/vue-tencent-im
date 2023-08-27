@@ -17,17 +17,22 @@ export const useChatStore = defineStore('useChatStore', {
   actions: {
     // 获取历史消息
     onHistoryMessageList() {
-      const options = {
-        conversationID: this.conversationID,
-        nextReqMessageID: this.nextReqMessageID
-      }
-      if (!options.nextReqMessageID) {
-        delete options.nextReqMessageID
-      }
-      chat.getMessageList(options).then(res => {
-        this.nextReqMessageID = res.data.nextReqMessageID
-        this.isCompleted = res.data.isCompleted
-        this.historyMessageList.unshift(...res.data.messageList)
+      return new Promise((resolve, reject) => {
+        const options = {
+          conversationID: this.conversationID,
+          nextReqMessageID: this.nextReqMessageID
+        }
+        if (!options.nextReqMessageID) {
+          delete options.nextReqMessageID
+        }
+        chat.getMessageList(options).then(res => {
+          this.nextReqMessageID = res.data.nextReqMessageID
+          this.isCompleted = res.data.isCompleted
+          this.historyMessageList.unshift(...res.data.messageList)
+          resolve()
+        }).catch((err) => {
+          reject(err)
+        })
       })
     },
     // 接收消息
