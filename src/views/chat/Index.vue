@@ -1,6 +1,11 @@
 <template>
     <div id="chatContent" class="chatContent">
-      <div class="messageList">
+      <Transition name="fade">
+        <div v-show="loading" class="loadingIcon">
+          <svg-icon class="icon" name="loading"/>
+        </div>
+      </Transition>
+      <div class="messageList" ref="messageListEl">
         <div class="messageItem" v-for="item in historyMessageList" :key="item.ID">
           <template v-if="item.type === 'TIMTextElem'">
             <div className="triangle"></div>
@@ -13,7 +18,11 @@
               <img class="avatar" :src="item.avatar || defaultAvatar" alt="avatar" />
             </div>
           </template>
-          <p v-else-if="item.type === 'TIMCustomElem'" class="systemMessage">{{ item.payload.description }}</p>
+          <template v-else-if="item.type === 'TIMCustomElem'">
+            <p v-if="item.payload.description" class="systemMessage">{{ item.payload.description }}</p>
+            <p v-else-if="item.payload.data === 'orderStatus' && item.payload.extension === '4'" class="systemMessage">{{ '审核失败' }}</p>
+            <p v-else-if="item.payload.data === 'serviceEnd'" class="systemMessage">{{ '服务已结束' }}</p>
+          </template>
         </div>
       </div>
       <!-- <div class="hideEl">hide</div> -->
@@ -29,33 +38,53 @@ import { ref, onMounted, reactive, nextTick, inject, onUpdated } from 'vue';
 import { useChatStore } from '@/sotre/modules/chat.js'
 import { useUserStore } from '@/sotre/modules/user.js'
 import TencentCloudChat from "@tencentcloud/chat"
+import { debounce } from '@/utils/utils'
 const { historyMessageList, isCompleted, onHistoryMessageList, SEND_MESSAGE } = useChatStore();
 const { defaultAvatar } = useUserStore()
 const chat = inject('TencentChat')
 const chatData = reactive({
   inputMessgae: ''
 })
+const loading = ref(false)
+const messageListEl = ref(null)
 
 onMounted(() => {
-  let el = document.querySelector(".messageList");
-  el.addEventListener("scroll", function (e) {
-    hadnleScroll(e)
+  messageListEl.value.addEventListener("scroll", (e) => {
+    debounce(hadnleScroll(e))
   })
+  // setBottom()
 })
 
+// onUpdated(() => {
+//   setBottom()
+// })
 
+// 滚动到底部事件
 const setBottom = () => {
   nextTick(() => {
-    let el = document.querySelector(".messageList");
-    el.scrollTop = el.scrollHeight
+    messageListEl.value.scrollTop = messageListEl.value.scrollHeight
   })
 }
 
+const keepScroll = () => {
+  nextTick(() => {
+    messageListEl.value.scrollTop = messageListEl.value.scrollHeight - lastScrollHeight.value
+  })
+}
+
+const lastScrollHeight = ref(0)
 // 监听滚动事件
 const hadnleScroll = (e) => {
   let scrollTop = e.target.scrollTop
+  const scrollH = e.target.scrollHeight
+  lastScrollHeight.value = scrollH
   if (scrollTop === 0 && !isCompleted) {
-    onHistoryMessageList()
+    loading.value = true
+    onHistoryMessageList().then(() => {
+      keepScroll()
+    }).finally(()=> {
+      loading.value = false
+    })
   }
 }
 
@@ -210,5 +239,31 @@ const createTextMessage = () => {
 
 .hideEl {
   height: 0;
+}
+
+.loadingIcon {
+  text-align: center;
+}
+
+.icon {
+  display: inline-block;
+  animation: move 1.2s linear infinite;
+  -webkit-animation: move 1.2s linear infinite;
+}
+@keyframes move {
+  100% {
+      transform: rotate(360deg);
+  }
+}
+</style>
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 1s ease-in-out;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
